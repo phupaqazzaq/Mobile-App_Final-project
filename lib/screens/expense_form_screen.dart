@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 import '../models/expense.dart';
 import '../utils/categories.dart';
+import '../utils/formatters.dart';
 
 /// The form for adding a new expense or editing an existing one.
 ///
-/// If [expense] is null, the form starts empty and saving inserts a new row.
-/// If [expense] is given, the form is pre-filled and saving updates that row.
+/// If [expense] is null, the form starts empty with the current date and time,
+/// and saving inserts a new row. If [expense] is given, the form is pre-filled
+/// and saving updates that row.
 /// The screen closes with the result `true` when something was saved.
 class ExpenseFormScreen extends StatefulWidget {
   const ExpenseFormScreen({super.key, this.expense});
@@ -19,6 +21,7 @@ class ExpenseFormScreen extends StatefulWidget {
   State<ExpenseFormScreen> createState() => _ExpenseFormScreenState();
 }
 
+/// Holds what the user has entered in the form and saves it to the database.
 class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
@@ -26,7 +29,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   final _dateController = TextEditingController();
 
   String _category = categories.first.name;
-  DateTime _date = DateUtils.dateOnly(DateTime.now());
+  DateTime _date = DateTime.now();
   bool _isSaving = false;
 
   bool get _isEditing => widget.expense != null;
@@ -37,12 +40,12 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     // Edit mode: copy the expense's values into the form.
     final expense = widget.expense;
     if (expense != null) {
-      _amountController.text = _formatAmount(expense.amount);
+      _amountController.text = amountToText(expense.amount);
       _titleController.text = expense.title;
       _category = categoryFor(expense.category).name;
       _date = expense.date;
     }
-    _dateController.text = formatDate(_date);
+    _dateController.text = formatDateTime(_date);
   }
 
   @override
@@ -54,14 +57,6 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     super.dispose();
   }
 
-  /// Shows 60 instead of 60.0 when the amount is a whole number.
-  String _formatAmount(double amount) {
-    if (amount == amount.truncateToDouble()) {
-      return amount.toInt().toString();
-    }
-    return amount.toString();
-  }
-
   /// The title must not be empty.
   String? _validateTitle(String? value) {
     if (value == null || value.trim().isEmpty) {
@@ -70,34 +65,43 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     return null;
   }
 
-  /// The amount must be a valid number greater than 0.
-  String? _validateAmount(String? value) {
-    final amount = double.tryParse(value?.trim() ?? '');
-    // isFinite also rejects text like "NaN" or "Infinity".
-    if (amount == null || !amount.isFinite) {
-      return 'Please enter a valid number';
-    }
-    if (amount <= 0) {
-      return 'Amount must be greater than 0';
-    }
-    return null;
-  }
-
-  /// Opens the date picker. The last date allowed is today, so future dates
-  /// can't be picked.
-  Future<void> _pickDate() async {
-    final today = DateUtils.dateOnly(DateTime.now());
-    final picked = await showDatePicker(
+  /// Opens the date picker, then the time picker. The last date allowed is
+  /// today, so future dates can't be picked.
+  Future<void> _pickDateTime() async {
+    final now = DateTime.now();
+    final pickedDate = await showDatePicker(
       context: context,
-      initialDate: _date.isAfter(today) ? today : _date,
+      initialDate: _date.isAfter(now) ? now : _date,
       firstDate: DateTime(2000),
-      lastDate: today,
+      lastDate: now,
     );
-    if (picked == null) return; // the user pressed Cancel
+    if (pickedDate == null || !mounted) return; // the user pressed Cancel
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_date),
+    );
+    if (pickedTime == null || !mounted) return; // the user pressed Cancel
+
+    final picked = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+
+    // The time picker can't block times later today, so check it here.
+    if (picked.isAfter(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("The time can't be in the future.")),
+      );
+      return;
+    }
 
     setState(() {
       _date = picked;
-      _dateController.text = formatDate(picked);
+      _dateController.text = formatDateTime(picked);
     });
   }
 
@@ -156,7 +160,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                 prefixText: '฿ ',
                 border: OutlineInputBorder(),
               ),
-              validator: _validateAmount,
+              validator: validateAmount,
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -198,10 +202,10 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _dateController,
-              readOnly: true, // the date can only be set with the picker
-              onTap: _pickDate,
+              readOnly: true, // it can only be changed with the pickers
+              onTap: _pickDateTime,
               decoration: const InputDecoration(
-                labelText: 'Date',
+                labelText: 'Date & time',
                 suffixIcon: Icon(Icons.calendar_today),
                 border: OutlineInputBorder(),
               ),

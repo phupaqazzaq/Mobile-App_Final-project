@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 /// One expense category: the name saved in the database, plus the icon and
-/// color used for it in the list and in the pie chart.
+/// color used for it in the lists and in the pie chart.
 class ExpenseCategory {
   const ExpenseCategory(this.name, this.icon, this.color);
 
@@ -18,6 +17,7 @@ const List<ExpenseCategory> categories = [
   ExpenseCategory('Transport', Icons.directions_bus, Colors.blue),
   ExpenseCategory('Shopping', Icons.shopping_bag, Colors.purple),
   ExpenseCategory('Bills', Icons.receipt_long, Colors.red),
+  ExpenseCategory('Entertainment', Icons.sports_esports, Colors.teal),
   ExpenseCategory('Other', Icons.category, Colors.blueGrey),
 ];
 
@@ -30,19 +30,31 @@ ExpenseCategory categoryFor(String name) {
   );
 }
 
-// Formatters are created once and reused.
-final NumberFormat _bahtFormat = NumberFormat.currency(
-  locale: 'th_TH',
-  symbol: '฿',
-);
-final DateFormat _dateFormat = DateFormat('dd MMM yyyy', 'en_US');
-final DateFormat _monthFormat = DateFormat('MMMM yyyy', 'en_US');
-
-/// Formats an amount as Thai Baht, e.g. 1250 becomes ฿1,250.00
-String formatBaht(double amount) => _bahtFormat.format(amount);
-
-/// Formats a date as dd MMM yyyy, e.g. 05 Nov 2026.
-String formatDate(DateTime date) => _dateFormat.format(date);
-
-/// Formats a month as its name and year, e.g. November 2026.
-String formatMonth(DateTime month) => _monthFormat.format(month);
+/// Two spending tips per category, used by the "top category" suggestion.
+/// The suggestion picks one by month, so it changes from month to month.
+const Map<String, List<String>> categoryTips = {
+  'Food': [
+    'Try bringing lunch from home.',
+    'Cut down on delivery fees by ordering less often.',
+  ],
+  'Transport': [
+    'Use a monthly BTS/MRT pass or share rides.',
+    'Walk or cycle for short trips.',
+  ],
+  'Shopping': [
+    'Wait 24 hours before buying anything non-essential.',
+    'Make a shopping list and stick to it.',
+  ],
+  'Bills': [
+    'Turn off the air-conditioner when you go out.',
+    'Check if a cheaper phone or internet plan fits your usage.',
+  ],
+  'Entertainment': [
+    'Look for free events or student discounts.',
+    'Set a weekly limit for games and outings.',
+  ],
+  'Other': [
+    'Review these expenses and give them a clearer category.',
+    'Set a small monthly limit for things you can\'t categorize.',
+  ],
+};

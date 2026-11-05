@@ -2,30 +2,42 @@ import 'package:flutter/material.dart';
 
 import '../database/database_helper.dart';
 import '../models/expense.dart';
+import '../models/insight.dart';
+import '../models/recurring_payment.dart';
 import '../utils/categories.dart';
 import '../widgets/expense_tile.dart';
+import '../widgets/insight_card.dart';
 import '../widgets/summary_card.dart';
-import 'chart_screen.dart';
 import 'expense_form_screen.dart';
+import 'insights_screen.dart';
 
-/// The main screen: the monthly total card, the category filter chips and
-/// the list of expenses. The + button adds an expense and the chart icon in
-/// the AppBar opens the spending chart.
+/// The Home tab: the monthly summary card, the top suggestion, the category
+/// filter chips and the list of expenses. The + button adds an expense.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, required this.onSeeAllInsights});
+
+  /// Called when "See all" is tapped on the top suggestion.
+  final VoidCallback onSeeAllInsights;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+/// Loads the expenses, totals and top suggestion, and handles the Home actions.
 class _HomeScreenState extends State<HomeScreen> {
   final _db = DatabaseHelper.instance;
 
   /// The expenses shown in the list (already filtered by [_selectedCategory]).
   List<Expense> _expenses = [];
 
-  /// Total spent in the current month, in all categories.
-  double _monthlyTotal = 0;
+  /// This month's expenses, in all categories.
+  double _dailySpending = 0;
+
+  /// The monthly cost of the active fixed costs and subscriptions.
+  double _recurringCost = 0;
+
+  /// The most important suggestion, or null if there are none.
+  Insight? _topInsight;
 
   /// The selected filter chip. null means "All".
   String? _selectedCategory;
@@ -39,13 +51,16 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadData();
   }
 
-  /// Reads the list and this month's total from the database, then redraws
-  /// the screen. Called at startup and after every add, edit, delete or
-  /// filter change.
+  /// Reads the list, this month's totals and the top suggestion from the
+  /// database, then redraws the screen. Called when the tab opens and after
+  /// every add, edit, delete or filter change.
   Future<void> _loadData() async {
+    final now = DateTime.now();
     final category = _selectedCategory;
     final expenses = await _db.getExpenses(category: category);
-    final total = await _db.getMonthlyTotal(DateTime.now());
+    final totals = await _db.getCategoryTotals(now);
+    final recurring = await _db.getRecurring();
+    final insights = await loadInsights(now);
 
     // Stop if the screen was closed, or if the user picked another filter
     // while we were waiting (the newer load will show that one).
@@ -53,7 +68,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     setState(() {
       _expenses = expenses;
-      _monthlyTotal = total;
+      _dailySpending = totals.values.fold(0.0, (sum, total) => sum + total);
+      _recurringCost = RecurringPayment.totalMonthlyCost(recurring);
+      _topInsight = insights.isEmpty ? null : insights.first;
       _isLoading = false;
     });
   }
@@ -70,14 +87,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (saved == true) {
       _loadData();
     }
-  }
-
-  /// Opens the pie chart screen.
-  void _openChart() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ChartScreen()),
-    );
   }
 
   /// Changes the category filter (null = All) and reloads the list.
@@ -124,29 +133,62 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('SpendWise'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.pie_chart),
-            tooltip: 'Spending chart',
-            onPressed: _openChart,
-          ),
-        ],
-      ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SummaryCard(total: _monthlyTotal, month: DateTime.now()),
-          _buildFilterChips(),
-          Expanded(child: _buildExpenseList()),
-        ],
+      appBar: AppBar(title: const Text('NoPoverty')),
+      body: ListView.builder(
+        // Space at the bottom so the + button doesn't cover the last item.
+        padding: const EdgeInsets.only(bottom: 80),
+        // The first item is the header, so everything scrolls together and
+        // small screens never run out of room.
+        itemCount: _expenses.length + 1,
+        itemBuilder: (context, index) {
+          if (index == 0) return _buildHeader();
+
+          final expense = _expenses[index - 1];
+          // Dismissible lets the user swipe the item to the left to delete it.
+          return Dismissible(
+            key: ValueKey(expense.id),
+            direction: DismissDirection.endToStart,
+            background: _buildDeleteBackground(),
+            onDismissed: (_) => _deleteExpense(expense),
+            child: ExpenseTile(
+              expense: expense,
+              onTap: () => _openForm(expense),
+            ),
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openForm(),
         tooltip: 'Add expense',
         child: const Icon(Icons.add),
       ),
+    );
+  }
+
+  /// Everything above the expenses, plus a spinner or the empty message when
+  /// there are no expenses to show.
+  Widget _buildHeader() {
+    final topInsight = _topInsight;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SummaryCard(
+          dailySpending: _dailySpending,
+          recurringCost: _recurringCost,
+          month: DateTime.now(),
+        ),
+        if (topInsight != null)
+          InsightCard(insight: topInsight, onSeeAll: widget.onSeeAllInsights),
+        _buildFilterChips(),
+        if (_isLoading)
+          const Padding(
+            padding: EdgeInsets.all(32),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_expenses.isEmpty)
+          _buildEmptyState(),
+      ],
     );
   }
 
@@ -174,33 +216,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// The expense list, or a spinner while loading, or the empty message.
-  Widget _buildExpenseList() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_expenses.isEmpty) {
-      return _buildEmptyState();
-    }
-
-    return ListView.builder(
-      // Space at the bottom so the + button doesn't cover the last item.
-      padding: const EdgeInsets.only(bottom: 80),
-      itemCount: _expenses.length,
-      itemBuilder: (context, index) {
-        final expense = _expenses[index];
-        // Dismissible lets the user swipe the item to the left to delete it.
-        return Dismissible(
-          key: ValueKey(expense.id),
-          direction: DismissDirection.endToStart,
-          background: _buildDeleteBackground(),
-          onDismissed: (_) => _deleteExpense(expense),
-          child: ExpenseTile(expense: expense, onTap: () => _openForm(expense)),
-        );
-      },
-    );
-  }
-
   /// The red background with a trash icon that shows while swiping.
   Widget _buildDeleteBackground() {
     final colors = Theme.of(context).colorScheme;
@@ -218,25 +233,22 @@ class _HomeScreenState extends State<HomeScreen> {
         ? 'No expenses yet. Tap + to add one.'
         : 'No $_selectedCategory expenses yet. Tap + to add one.';
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.savings_outlined,
-              size: 72,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        children: [
+          Icon(
+            Icons.savings_outlined,
+            size: 72,
+            color: Theme.of(context).colorScheme.outline,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ],
       ),
     );
   }

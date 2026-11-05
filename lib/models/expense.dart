@@ -32,12 +32,12 @@ class Expense {
   /// One of the category names in lib/utils/categories.dart, e.g. "Food".
   final String category;
 
-  /// The day of the expense (time is always midnight).
+  /// The date and time of the expense.
   final DateTime date;
 
   /// Converts this expense to a Map whose keys are the table's column names,
   /// so sqflite can save it. The date is saved as an ISO 8601 string,
-  /// e.g. 2026-11-05T00:00:00.000.
+  /// e.g. 2026-11-05T12:30:00.000.
   Map<String, dynamic> toMap() {
     return {
       'id': id,
