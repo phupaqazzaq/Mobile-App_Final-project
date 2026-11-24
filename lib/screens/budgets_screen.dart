@@ -81,12 +81,14 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               children: [
-                for (final category in categories)
+                // The index tells each row when its bar starts filling.
+                for (var i = 0; i < categories.length; i++)
                   BudgetTile(
-                    category: category,
-                    spent: _spentIn(category.name),
-                    limit: _budgets[category.name],
-                    onTap: () => _editBudget(category),
+                    category: categories[i],
+                    index: i,
+                    spent: _spentIn(categories[i].name),
+                    limit: _budgets[categories[i].name],
+                    onTap: () => _editBudget(categories[i]),
                   ),
               ],
             ),

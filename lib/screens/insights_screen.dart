@@ -7,6 +7,7 @@ import '../models/recurring_payment.dart';
 import '../services/insight_service.dart';
 import '../utils/categories.dart';
 import '../utils/formatters.dart';
+import '../utils/motion.dart';
 import '../widgets/insight_card.dart';
 
 /// Reads everything the suggestion engine needs from the database and returns
@@ -35,7 +36,8 @@ class InsightsScreen extends StatefulWidget {
   State<InsightsScreen> createState() => _InsightsScreenState();
 }
 
-/// Loads the chart's totals and the suggestions from the database.
+/// Loads the chart's totals and the suggestions from the database, and
+/// remembers which slice of the chart is tapped.
 class _InsightsScreenState extends State<InsightsScreen> {
   final DateTime _month = DateTime.now();
 
@@ -51,6 +53,13 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
   /// True until the data has been read from the database.
   bool _isLoading = true;
+
+  /// False for the chart's first frame, which draws every slice at zero so
+  /// that the slices can sweep in to their real sizes.
+  bool _chartReady = false;
+
+  /// The index of the tapped slice, or -1 when no slice is tapped.
+  int _touchedIndex = -1;
 
   @override
   void initState() {
@@ -71,6 +80,25 @@ class _InsightsScreenState extends State<InsightsScreen> {
       _recurringCost = RecurringPayment.totalMonthlyCost(recurring);
       _insights = insights;
       _isLoading = false;
+    });
+
+    // The first frame draws the chart with every slice at zero. This
+    // callback runs after that frame and sets the real values, and PieChart
+    // animates from one to the other by itself.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _chartReady = true);
+    });
+  }
+
+  /// Tapping a slice selects it: the slice grows a little and its legend row
+  /// lights up. Tapping it again, or outside the slices, clears the selection.
+  void _onChartTouched(FlTouchEvent event, PieTouchResponse? response) {
+    if (event is! FlTapUpEvent) return;
+    final index = response?.touchedSection?.touchedSectionIndex ?? -1;
+    // The last section is the invisible filler, not a category.
+    final isCategory = index >= 0 && index < _totals.length;
+    setState(() {
+      _touchedIndex = isCategory && index != _touchedIndex ? index : -1;
     });
   }
 
@@ -100,7 +128,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                     ),
                   ),
                 const SizedBox(height: 8),
-                for (final insight in _insights) InsightCard(insight: insight),
+                _buildCards(),
               ],
             ),
     );
@@ -109,25 +137,41 @@ class _InsightsScreenState extends State<InsightsScreen> {
   /// The pie chart and its legend (one row per category).
   List<Widget> _buildChart() {
     final grandTotal = _totals.values.fold(0.0, (sum, amount) => sum + amount);
+    final entries = _totals.entries.toList();
 
     return [
       SizedBox(
         height: 260,
+        // Pie slices sweep in: PieChart's own implicit animation. Whenever
+        // its data changes (from zero to the real values, or a slice tapped),
+        // it animates from the old slices to the new ones in 800 ms.
         child: PieChart(
+          duration: Motion.duration(context, Motion.pieSweep),
+          curve: Motion.curve,
           PieChartData(
             startDegreeOffset: -90, // start the first slice at the top
             sectionsSpace: 2,
             centerSpaceRadius: 50,
+            pieTouchData: PieTouchData(touchCallback: _onChartTouched),
             sections: [
-              for (final entry in _totals.entries)
-                _buildSection(entry.key, entry.value, grandTotal),
+              for (var i = 0; i < entries.length; i++)
+                _buildSection(entries[i].key, entries[i].value, grandTotal, i),
+              // An invisible slice for the rest of the circle. It starts as
+              // the whole circle and shrinks to nothing while the real slices
+              // grow, so they sweep in from the top.
+              PieChartSectionData(
+                value: _chartReady ? 0 : grandTotal,
+                color: Colors.transparent,
+                radius: 70,
+                showTitle: false,
+              ),
             ],
           ),
         ),
       ),
       const SizedBox(height: 16),
-      for (final entry in _totals.entries)
-        _buildLegendRow(entry.key, entry.value, grandTotal),
+      for (var i = 0; i < entries.length; i++)
+        _buildLegendRow(entries[i].key, entries[i].value, grandTotal, i),
     ];
   }
 
@@ -136,39 +180,94 @@ class _InsightsScreenState extends State<InsightsScreen> {
     String name,
     double amount,
     double grandTotal,
+    int index,
   ) {
     final percent = amount / grandTotal * 100;
+    const titleStyle = TextStyle(
+      color: Colors.white,
+      fontSize: 14,
+      fontWeight: FontWeight.bold,
+      shadows: [Shadow(color: Colors.black54, blurRadius: 2)],
+    );
+
     return PieChartSectionData(
-      value: amount,
+      // Zero on the first frame, so the slice can grow to its real size.
+      value: _chartReady ? amount : 0,
       color: categoryFor(name).color,
-      radius: 70,
+      // Tap a slice: the tapped slice is drawn 8 px bigger.
+      radius: index == _touchedIndex ? 78 : 70,
       title: '${percent.round()}%',
       // Very thin slices have no room for a label.
       showTitle: percent >= 5,
-      titleStyle: const TextStyle(
-        color: Colors.white,
-        fontSize: 14,
-        fontWeight: FontWeight.bold,
-        shadows: [Shadow(color: Colors.black54, blurRadius: 2)],
-      ),
+      // The labels start see-through and fade in while the slices grow.
+      titleStyle: _chartReady
+          ? titleStyle
+          : titleStyle.copyWith(
+              color: Colors.white.withValues(alpha: 0),
+              shadows: [],
+            ),
     );
   }
 
   /// One legend row: the category's colored icon, name, amount and percentage.
-  Widget _buildLegendRow(String name, double amount, double grandTotal) {
+  Widget _buildLegendRow(
+    String name,
+    double amount,
+    double grandTotal,
+    int index,
+  ) {
     final category = categoryFor(name);
     final percent = (amount / grandTotal * 100).round();
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: category.color,
-        foregroundColor: Colors.white,
-        child: Icon(category.icon),
+    final isTouched = index == _touchedIndex;
+
+    // The legend row of the tapped slice lights up in the category's color.
+    // AnimatedContainer fades its background color in and out in 250 ms.
+    return AnimatedContainer(
+      duration: Motion.duration(context, Motion.highlight),
+      curve: Motion.curve,
+      color: category.color.withValues(alpha: isTouched ? 0.15 : 0),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: category.color,
+          foregroundColor: Colors.white,
+          child: Icon(category.icon),
+        ),
+        title: Text(category.name),
+        trailing: Text(
+          '${formatBaht(amount)} · $percent%',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
       ),
-      title: Text(category.name),
-      trailing: Text(
-        '${formatBaht(amount)} · $percent%',
-        style: Theme.of(context).textTheme.bodyLarge,
-      ),
+    );
+  }
+
+  /// Suggestion cards slide up: each card fades in and slides up 16 px in
+  /// 400 ms, starting 100 ms after the card above it (TweenAnimationBuilder,
+  /// with an Interval curve for the delay). The cards sit in one Column so
+  /// they all start when the tab opens, not when they are scrolled to.
+  Widget _buildCards() {
+    return Column(
+      children: [
+        for (var i = 0; i < _insights.length; i++)
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: Motion.duration(
+              context,
+              Motion.cardStagger * i + Motion.card,
+            ),
+            curve: Motion.staggered(i, Motion.cardStagger, Motion.card),
+            builder: (context, value, child) {
+              return Opacity(
+                opacity: value,
+                child: Transform.translate(
+                  offset: Offset(0, 16 * (1 - value)),
+                  child: child,
+                ),
+              );
+            },
+            child: InsightCard(insight: _insights[i]),
+          ),
+      ],
     );
   }
 

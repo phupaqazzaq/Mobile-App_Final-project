@@ -10,7 +10,7 @@ import '../utils/formatters.dart';
 /// If [expense] is null, the form starts empty with the current date and time,
 /// and saving inserts a new row. If [expense] is given, the form is pre-filled
 /// and saving updates that row.
-/// The screen closes with the result `true` when something was saved.
+/// The screen closes with the saved expense's id when something was saved.
 class ExpenseFormScreen extends StatefulWidget {
   const ExpenseFormScreen({super.key, this.expense});
 
@@ -118,9 +118,10 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     final title = _titleController.text.trim();
     final existing = widget.expense;
 
+    final int savedId;
     if (existing == null) {
       // Add mode: insert a new row. SQLite gives it an id.
-      await DatabaseHelper.instance.insertExpense(
+      savedId = await DatabaseHelper.instance.insertExpense(
         Expense(title: title, amount: amount, category: _category, date: _date),
       );
     } else {
@@ -133,10 +134,13 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
           date: _date,
         ),
       );
+      savedId = existing.id!;
     }
 
     if (!mounted) return;
-    Navigator.pop(context, true);
+    // Tell the home screen which expense was saved, so a new one can slide
+    // into the list.
+    Navigator.pop(context, savedId);
   }
 
   @override

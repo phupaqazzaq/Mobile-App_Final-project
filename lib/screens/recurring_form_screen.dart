@@ -9,7 +9,7 @@ import '../utils/formatters.dart';
 ///
 /// If [item] is null, the form starts empty and saving inserts a new row.
 /// If [item] is given, the form is pre-filled and saving updates that row.
-/// The screen closes with the result `true` when something was saved.
+/// The screen closes with the item it saved (for a new item, without its id).
 class RecurringFormScreen extends StatefulWidget {
   const RecurringFormScreen({super.key, this.item});
 
@@ -106,7 +106,9 @@ class _RecurringFormScreenState extends State<RecurringFormScreen> {
     }
 
     if (!mounted) return;
-    Navigator.pop(context, true);
+    // Give the list the saved item, so it can tell whether a subscription was
+    // just switched off.
+    Navigator.pop(context, item);
   }
 
   @override

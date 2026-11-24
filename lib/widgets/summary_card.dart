@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../utils/formatters.dart';
+import 'rolling_amount.dart';
 
 /// The card at the top of the Home tab. It shows the total for the current
 /// month and how it splits into daily spending and recurring payments.
@@ -25,6 +26,9 @@ class SummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final smallStyle = textTheme.bodySmall?.copyWith(
+      color: colors.onPrimaryContainer,
+    );
 
     return Card(
       color: colors.primaryContainer,
@@ -44,20 +48,33 @@ class SummaryCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    formatBaht(dailySpending + recurringCost),
+                  // Total rolls up: after every add, edit or delete the total
+                  // counts from its old value to the new one
+                  // (TweenAnimationBuilder inside RollingAmount).
+                  RollingAmount(
+                    amount: dailySpending + recurringCost,
                     style: textTheme.headlineMedium?.copyWith(
                       color: colors.onPrimaryContainer,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    'Daily spending ${formatBaht(dailySpending)} · '
-                    'Fixed & subscriptions ${formatBaht(recurringCost)}',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: colors.onPrimaryContainer,
-                    ),
+                  // The two parts of the total roll the same way. Wrap moves
+                  // the second part to the next line on a narrow screen.
+                  Wrap(
+                    children: [
+                      RollingAmount(
+                        amount: dailySpending,
+                        prefix: 'Daily spending ',
+                        style: smallStyle,
+                      ),
+                      Text(' · ', style: smallStyle),
+                      RollingAmount(
+                        amount: recurringCost,
+                        prefix: 'Fixed & subscriptions ',
+                        style: smallStyle,
+                      ),
+                    ],
                   ),
                 ],
               ),

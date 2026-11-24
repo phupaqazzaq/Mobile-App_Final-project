@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 import '../models/recurring_payment.dart';
 import '../utils/formatters.dart';
+import '../utils/motion.dart';
 import '../widgets/recurring_tile.dart';
+import '../widgets/rolling_amount.dart';
+import '../widgets/savings_float.dart';
 import 'recurring_form_screen.dart';
 
 /// The Recurring tab: a header with the totals, then the fixed costs and the
@@ -25,6 +28,10 @@ class _RecurringScreenState extends State<RecurringScreen> {
   /// True until the first load from the database has finished.
   bool _isLoading = true;
 
+  /// The id of the subscription that was just switched off. Its row shows
+  /// how much that saves per year, then this goes back to null.
+  int? _switchedOffId;
+
   @override
   void initState() {
     super.initState();
@@ -43,15 +50,31 @@ class _RecurringScreenState extends State<RecurringScreen> {
   }
 
   /// Opens the form. With an [item] the form edits it; without one it adds a
-  /// new item. The form returns true when it saved something.
+  /// new item. The form returns the item it saved, or null if nothing was
+  /// saved.
   Future<void> _openForm([RecurringPayment? item]) async {
-    final saved = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(builder: (context) => RecurringFormScreen(item: item)),
+    final route = MaterialPageRoute<RecurringPayment>(
+      builder: (context) => RecurringFormScreen(item: item),
     );
-    if (saved == true) {
-      _loadData();
+    final saved = await Navigator.push(context, route);
+    if (saved == null) return; // closed without saving
+
+    // Wait until the form has finished closing, so the user sees the totals
+    // roll and the savings label float up.
+    await route.completed;
+    if (!mounted) return;
+
+    // A subscription that was on and is now off shows what it saves.
+    // Switching one back on only rolls the totals.
+    final switchedOff =
+        item != null &&
+        item.isActive &&
+        !saved.isActive &&
+        saved.type == RecurringPayment.subscription;
+    if (switchedOff && !Motion.isOff(context)) {
+      _switchedOffId = saved.id;
     }
+    _loadData();
   }
 
   /// Called after an item is swiped away: deletes it from the database and
@@ -155,8 +178,12 @@ class _RecurringScreenState extends State<RecurringScreen> {
     return Expanded(
       child: Column(
         children: [
-          Text(
-            formatWholeBaht(amount),
+          // Totals roll: when an item is added, edited, deleted or switched
+          // on or off, the total counts to its new value (RollingAmount, the
+          // same TweenAnimationBuilder as the Home total).
+          RollingAmount(
+            amount: amount,
+            format: formatWholeBaht,
             style: textTheme.titleMedium?.copyWith(
               color: colors.onPrimaryContainer,
               fontWeight: FontWeight.bold,
@@ -187,16 +214,40 @@ class _RecurringScreenState extends State<RecurringScreen> {
           padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
           child: Text('Nothing here yet. Tap + to add one.'),
         ),
-      for (final item in items)
-        // Dismissible lets the user swipe the item to the left to delete it.
-        Dismissible(
-          key: ValueKey(item.id),
-          direction: DismissDirection.endToStart,
-          background: _buildDeleteBackground(),
-          onDismissed: (_) => _deleteItem(item),
-          child: RecurringTile(item: item, onTap: () => _openForm(item)),
-        ),
+      for (final item in items) _buildRow(item),
     ];
+  }
+
+  /// One item, which can be swiped to the left to delete it (Dismissible).
+  Widget _buildRow(RecurringPayment item) {
+    final row = Dismissible(
+      key: ValueKey(item.id),
+      direction: DismissDirection.endToStart,
+      background: _buildDeleteBackground(),
+      onDismissed: (_) => _deleteItem(item),
+      child: RecurringTile(item: item, onTap: () => _openForm(item)),
+    );
+    if (item.id != _switchedOffId) return row;
+
+    // A subscription that was just switched off: its yearly cost floats up
+    // from the row with a few coins (SavingsFloat), then disappears.
+    return Stack(
+      clipBehavior: Clip.none, // the label floats above the row
+      children: [
+        row,
+        Positioned.fill(
+          // The label never blocks a tap on the rows under it.
+          child: IgnorePointer(
+            child: Center(
+              child: SavingsFloat(
+                yearlyAmount: item.yearlyCost,
+                onDone: () => setState(() => _switchedOffId = null),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   /// The red background with a trash icon that shows while swiping.
