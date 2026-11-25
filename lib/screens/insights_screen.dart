@@ -47,6 +47,9 @@ class _InsightsScreenState extends State<InsightsScreen> {
   static const double _holeRadius = 74;
   static const double _ringWidth = 26;
 
+  /// How far outside the ring each slice's percentage is drawn.
+  static const double _labelGap = 20;
+
   final DateTime _month = DateTime.now();
 
   /// This month's expenses per category, biggest first. Recurring payments
@@ -173,7 +176,9 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
     return [
       SizedBox(
-        height: 2 * (_holeRadius + _ringWidth + 8) + 8,
+        // Room for the ring, a tapped slice growing by 8 and the labels
+        // outside it.
+        height: 2 * (_holeRadius + _ringWidth + 8 + _labelGap + 12),
         child: Stack(
           alignment: Alignment.center,
           children: [
@@ -191,7 +196,12 @@ class _InsightsScreenState extends State<InsightsScreen> {
                 pieTouchData: PieTouchData(touchCallback: _onChartTouched),
                 sections: [
                   for (var i = 0; i < entries.length; i++)
-                    _buildSection(entries[i].key, entries[i].value, i),
+                    _buildSection(
+                      entries[i].key,
+                      entries[i].value,
+                      grandTotal,
+                      i,
+                    ),
                   // An invisible slice for the rest of the circle. It starts
                   // as the whole circle and shrinks to nothing while the real
                   // slices grow, so they sweep in from the top.
@@ -248,16 +258,40 @@ class _InsightsScreenState extends State<InsightsScreen> {
     ];
   }
 
-  /// One slice of the donut, in the category's color. The percentages are
-  /// in the legend under the chart.
-  PieChartSectionData _buildSection(String name, double amount, int index) {
+  /// One slice of the donut, in the category's color, labelled with its
+  /// percentage of the total. The label sits just outside the ring in dark
+  /// text, so it is easy to read on the white card.
+  PieChartSectionData _buildSection(
+    String name,
+    double amount,
+    double grandTotal,
+    int index,
+  ) {
+    final percent = amount / grandTotal * 100;
+    // Tap a slice: the tapped slice is drawn 8 px thicker.
+    final radius = index == _touchedIndex ? _ringWidth + 8 : _ringWidth;
+    const titleStyle = TextStyle(
+      color: AppStyle.ink,
+      fontSize: 13,
+      fontWeight: FontWeight.w700,
+    );
+
     return PieChartSectionData(
       // Zero on the first frame, so the slice can grow to its real size.
       value: _chartReady ? amount : 0,
       color: categoryFor(name).color,
-      // Tap a slice: the tapped slice is drawn 8 px thicker.
-      radius: index == _touchedIndex ? _ringWidth + 8 : _ringWidth,
-      showTitle: false,
+      radius: radius,
+      title: '${percent.round()}%',
+      // Very thin slices have no room for a label.
+      showTitle: percent >= 5,
+      // fl_chart measures this from the inside of the ring, in slice
+      // thicknesses (1 is the outside edge), so this puts the label
+      // _labelGap pixels outside the ring.
+      titlePositionPercentageOffset: (radius + _labelGap) / radius,
+      // The labels start see-through and fade in while the slices grow.
+      titleStyle: _chartReady
+          ? titleStyle
+          : titleStyle.copyWith(color: AppStyle.ink.withValues(alpha: 0)),
     );
   }
 
