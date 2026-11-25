@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../models/recurring_payment.dart';
+import '../utils/app_style.dart';
 import '../utils/categories.dart';
 import '../utils/formatters.dart';
+import 'category_icon.dart';
+import 'money_text.dart';
 
-/// One item in the Recurring tab: the category icon, the name, the next
-/// payment date, and the amount and billing cycle on the right. Subscriptions
-/// also show their yearly cost. Tapping it calls [onTap].
+/// One item in the Recurring tab, on its own white card: the category icon,
+/// the name, the next payment date, and the amount and billing cycle on the
+/// right. Subscriptions also show their yearly cost. Tapping it calls [onTap].
 class RecurringTile extends StatelessWidget {
   const RecurringTile({super.key, required this.item, required this.onTap});
 
@@ -32,40 +35,55 @@ class RecurringTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final category = categoryFor(item.category);
-    final textTheme = Theme.of(context).textTheme;
     final isSubscription = item.type == RecurringPayment.subscription;
+    // Inactive items look faded: a pale icon and grey text. The text stays
+    // dark enough to read.
+    final textColor = item.isActive ? AppStyle.ink : AppStyle.muted;
 
-    return Opacity(
-      opacity: item.isActive ? 1 : 0.5, // inactive items look faded
+    return Card(
+      // Keeps the tap ripple inside the round corners.
+      clipBehavior: Clip.antiAlias,
       child: ListTile(
         onTap: onTap,
         isThreeLine: isSubscription,
-        leading: CircleAvatar(
-          backgroundColor: category.color,
-          foregroundColor: Colors.white,
-          child: Icon(category.icon),
+        contentPadding: const EdgeInsets.fromLTRB(14, 6, 18, 6),
+        leading: Opacity(
+          opacity: item.isActive ? 1 : 0.4,
+          child: CategoryIcon(category: category),
         ),
-        title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        title: Text(
+          item.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+        ),
         subtitle: Text(
           isSubscription
               ? '${_nextPaymentText()}\n${formatBaht(item.yearlyCost)} a year'
               : _nextPaymentText(),
+          style: const TextStyle(color: AppStyle.muted),
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
+            MoneyText(
               formatBaht(item.amount),
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+              ),
+              decimalsStyle: const TextStyle(
+                color: AppStyle.muted,
+                fontSize: 13,
               ),
             ),
             Text(
               item.billingCycle == RecurringPayment.yearly
                   ? 'per year'
                   : 'per month',
-              style: textTheme.bodySmall,
+              style: const TextStyle(color: AppStyle.muted, fontSize: 12),
             ),
           ],
         ),

@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../database/database_helper.dart';
 import '../models/recurring_payment.dart';
+import '../utils/app_style.dart';
 import '../utils/categories.dart';
 import '../utils/formatters.dart';
 import '../widgets/budget_tile.dart';
 
-/// The Budgets tab: one row per category showing how much of its monthly
-/// limit has been spent. Tapping a row sets or changes the limit.
+/// The Budgets tab: one envelope per category showing how much of its
+/// monthly limit is left. Tapping an envelope sets or changes the limit.
 class BudgetsScreen extends StatefulWidget {
   const BudgetsScreen({super.key});
 
@@ -80,18 +81,44 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
               children: [
-                // The index tells each row when its bar starts filling.
-                for (var i = 0; i < categories.length; i++)
-                  BudgetTile(
-                    category: categories[i],
-                    index: i,
-                    spent: _spentIn(categories[i].name),
-                    limit: _budgets[categories[i].name],
-                    onTap: () => _editBudget(categories[i]),
+                // Two envelopes per row.
+                for (var i = 0; i < categories.length; i += 2)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    // IntrinsicHeight makes both envelopes in a row as tall
+                    // as the taller one.
+                    child: IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: _buildEnvelope(i)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: i + 1 < categories.length
+                                ? _buildEnvelope(i + 1)
+                                : const SizedBox.shrink(),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
               ],
             ),
+    );
+  }
+
+  /// The envelope of category number [index]. The index also tells it when
+  /// to start filling.
+  Widget _buildEnvelope(int index) {
+    final category = categories[index];
+    return BudgetTile(
+      category: category,
+      index: index,
+      spent: _spentIn(category.name),
+      limit: _budgets[category.name],
+      onTap: () => _editBudget(category),
     );
   }
 }
@@ -162,7 +189,8 @@ class _BudgetDialogState extends State<_BudgetDialog> {
           decoration: const InputDecoration(
             labelText: 'Monthly limit',
             prefixText: '฿ ',
-            border: OutlineInputBorder(),
+            // The dialog is white, so its field uses the off-white instead.
+            fillColor: AppStyle.canvas,
           ),
           validator: validateAmount,
         ),

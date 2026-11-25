@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../database/database_helper.dart';
 import '../models/expense.dart';
+import '../utils/app_style.dart';
 import '../utils/categories.dart';
 import '../utils/formatters.dart';
+import '../widgets/amount_field.dart';
+import '../widgets/category_icon.dart';
+import '../widgets/form_app_bar.dart';
 
 /// The form for adding a new expense or editing an existing one.
 ///
@@ -146,51 +150,42 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_isEditing ? 'Edit Expense' : 'Add Expense')),
+      appBar: buildFormAppBar(_isEditing ? 'Edit Expense' : 'Add Expense'),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
-            TextFormField(
+            // The amount comes first, large and centred. In add mode the
+            // cursor starts here, so an expense can be logged in seconds.
+            AmountField(
               controller: _amountController,
               autofocus: !_isEditing,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
               textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Amount',
-                prefixText: '฿ ',
-                border: OutlineInputBorder(),
-              ),
-              validator: validateAmount,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             TextFormField(
               controller: _titleController,
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(
                 labelText: 'Title',
                 hintText: 'e.g. Lunch',
-                border: OutlineInputBorder(),
               ),
               validator: _validateTitle,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: _category,
-              decoration: const InputDecoration(
-                labelText: 'Category',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Category'),
+              dropdownColor: Colors.white,
+              borderRadius: BorderRadius.circular(AppStyle.fieldRadius),
               items: [
                 for (final category in categories)
                   DropdownMenuItem(
                     value: category.name,
                     child: Row(
                       children: [
-                        Icon(category.icon, color: category.color),
+                        CategoryIcon(category: category, size: 28),
                         const SizedBox(width: 12),
                         Text(category.name),
                       ],
@@ -203,7 +198,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                 if (value != null) _category = value;
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             TextFormField(
               controller: _dateController,
               readOnly: true, // it can only be changed with the pickers
@@ -211,14 +206,17 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
               decoration: const InputDecoration(
                 labelText: 'Date & time',
                 suffixIcon: Icon(Icons.calendar_today),
-                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _isSaving ? null : _save,
-              icon: const Icon(Icons.save),
-              label: Text(_isEditing ? 'Save Changes' : 'Add Expense'),
+            // The main button: a black pill.
+            SizedBox(
+              height: 56,
+              child: FilledButton.icon(
+                onPressed: _isSaving ? null : _save,
+                icon: const Icon(Icons.save),
+                label: Text(_isEditing ? 'Save Changes' : 'Add Expense'),
+              ),
             ),
           ],
         ),

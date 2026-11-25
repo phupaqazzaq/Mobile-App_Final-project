@@ -5,10 +5,13 @@ import '../database/database_helper.dart';
 import '../models/insight.dart';
 import '../models/recurring_payment.dart';
 import '../services/insight_service.dart';
+import '../utils/app_style.dart';
 import '../utils/categories.dart';
 import '../utils/formatters.dart';
 import '../utils/motion.dart';
+import '../widgets/category_icon.dart';
 import '../widgets/insight_card.dart';
+import '../widgets/rolling_amount.dart';
 
 /// Reads everything the suggestion engine needs from the database and returns
 /// its suggestions, most urgent first. The Home tab uses this too, for the top
@@ -27,8 +30,8 @@ Future<List<Insight>> loadInsights(DateTime today) async {
   );
 }
 
-/// The Insights tab: a pie chart of this month's daily spending with a legend,
-/// followed by the suggestion cards.
+/// The Insights tab: a card with a donut chart of this month's daily
+/// spending and its legend, followed by the suggestion cards.
 class InsightsScreen extends StatefulWidget {
   const InsightsScreen({super.key});
 
@@ -39,6 +42,11 @@ class InsightsScreen extends StatefulWidget {
 /// Loads the chart's totals and the suggestions from the database, and
 /// remembers which slice of the chart is tapped.
 class _InsightsScreenState extends State<InsightsScreen> {
+  /// The size of the hole in the middle of the donut, and the thickness of
+  /// its ring.
+  static const double _holeRadius = 74;
+  static const double _ringWidth = 26;
+
   final DateTime _month = DateTime.now();
 
   /// This month's expenses per category, biggest first. Recurring payments
@@ -109,107 +117,151 @@ class _InsightsScreenState extends State<InsightsScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
               children: [
-                Text(
-                  formatMonth(_month),
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 16),
-                if (_totals.isEmpty) _buildEmptyState() else ..._buildChart(),
-                if (_recurringCost > 0)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                    child: Text(
-                      'Plus ${formatBaht(_recurringCost)} in fixed costs and '
-                      'subscriptions',
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                const SizedBox(height: 8),
+                _buildChartCard(),
+                const SizedBox(height: 12),
                 _buildCards(),
               ],
             ),
     );
   }
 
-  /// The pie chart and its legend (one row per category).
+  /// The white card with the month, the donut chart and its legend (or the
+  /// empty message), and the line about recurring payments.
+  Widget _buildChartCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                formatMonth(_month),
+                style: const TextStyle(
+                  color: AppStyle.ink,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (_totals.isEmpty) _buildEmptyState() else ..._buildChart(),
+            if (_recurringCost > 0)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 12, 4, 0),
+                child: Text(
+                  'Plus ${formatBaht(_recurringCost)} in fixed costs and '
+                  'subscriptions',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppStyle.muted),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The donut chart, with the total in its middle, and its legend (one row
+  /// per category).
   List<Widget> _buildChart() {
     final grandTotal = _totals.values.fold(0.0, (sum, amount) => sum + amount);
     final entries = _totals.entries.toList();
 
     return [
       SizedBox(
-        height: 260,
-        // Pie slices sweep in: PieChart's own implicit animation. Whenever
-        // its data changes (from zero to the real values, or a slice tapped),
-        // it animates from the old slices to the new ones in 800 ms.
-        child: PieChart(
-          duration: Motion.duration(context, Motion.pieSweep),
-          curve: Motion.curve,
-          PieChartData(
-            startDegreeOffset: -90, // start the first slice at the top
-            sectionsSpace: 2,
-            centerSpaceRadius: 50,
-            pieTouchData: PieTouchData(touchCallback: _onChartTouched),
-            sections: [
-              for (var i = 0; i < entries.length; i++)
-                _buildSection(entries[i].key, entries[i].value, grandTotal, i),
-              // An invisible slice for the rest of the circle. It starts as
-              // the whole circle and shrinks to nothing while the real slices
-              // grow, so they sweep in from the top.
-              PieChartSectionData(
-                value: _chartReady ? 0 : grandTotal,
-                color: Colors.transparent,
-                radius: 70,
-                showTitle: false,
+        height: 2 * (_holeRadius + _ringWidth + 8) + 8,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Pie slices sweep in: PieChart's own implicit animation. Whenever
+            // its data changes (from zero to the real values, or a slice
+            // tapped), it animates from the old slices to the new ones in
+            // 800 ms.
+            PieChart(
+              duration: Motion.duration(context, Motion.pieSweep),
+              curve: Motion.curve,
+              PieChartData(
+                startDegreeOffset: -90, // start the first slice at the top
+                sectionsSpace: 3,
+                centerSpaceRadius: _holeRadius,
+                pieTouchData: PieTouchData(touchCallback: _onChartTouched),
+                sections: [
+                  for (var i = 0; i < entries.length; i++)
+                    _buildSection(entries[i].key, entries[i].value, i),
+                  // An invisible slice for the rest of the circle. It starts
+                  // as the whole circle and shrinks to nothing while the real
+                  // slices grow, so they sweep in from the top.
+                  PieChartSectionData(
+                    value: _chartReady ? 0 : grandTotal,
+                    color: Colors.transparent,
+                    radius: _ringWidth,
+                    showTitle: false,
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            // The total of the chart in the middle of the ring. It counts up
+            // with RollingAmount while the slices sweep in. IgnorePointer
+            // lets taps through to the chart.
+            IgnorePointer(
+              child: SizedBox(
+                width: 2 * _holeRadius - 16,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Daily spending',
+                      style: TextStyle(color: AppStyle.muted, fontSize: 13),
+                    ),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: RollingAmount(
+                        amount: grandTotal,
+                        style: const TextStyle(
+                          color: AppStyle.ink,
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
+                        decimalsStyle: const TextStyle(
+                          color: AppStyle.muted,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 12),
       for (var i = 0; i < entries.length; i++)
         _buildLegendRow(entries[i].key, entries[i].value, grandTotal, i),
     ];
   }
 
-  /// One slice of the pie, labelled with its percentage of the total.
-  PieChartSectionData _buildSection(
-    String name,
-    double amount,
-    double grandTotal,
-    int index,
-  ) {
-    final percent = amount / grandTotal * 100;
-    const titleStyle = TextStyle(
-      color: Colors.white,
-      fontSize: 14,
-      fontWeight: FontWeight.bold,
-      shadows: [Shadow(color: Colors.black54, blurRadius: 2)],
-    );
-
+  /// One slice of the donut, in the category's color. The percentages are
+  /// in the legend under the chart.
+  PieChartSectionData _buildSection(String name, double amount, int index) {
     return PieChartSectionData(
       // Zero on the first frame, so the slice can grow to its real size.
       value: _chartReady ? amount : 0,
       color: categoryFor(name).color,
-      // Tap a slice: the tapped slice is drawn 8 px bigger.
-      radius: index == _touchedIndex ? 78 : 70,
-      title: '${percent.round()}%',
-      // Very thin slices have no room for a label.
-      showTitle: percent >= 5,
-      // The labels start see-through and fade in while the slices grow.
-      titleStyle: _chartReady
-          ? titleStyle
-          : titleStyle.copyWith(
-              color: Colors.white.withValues(alpha: 0),
-              shadows: [],
-            ),
+      // Tap a slice: the tapped slice is drawn 8 px thicker.
+      radius: index == _touchedIndex ? _ringWidth + 8 : _ringWidth,
+      showTitle: false,
     );
   }
 
-  /// One legend row: the category's colored icon, name, amount and percentage.
+  /// One legend row: the category's icon, name, amount and percentage.
   Widget _buildLegendRow(
     String name,
     double amount,
@@ -225,18 +277,31 @@ class _InsightsScreenState extends State<InsightsScreen> {
     return AnimatedContainer(
       duration: Motion.duration(context, Motion.highlight),
       curve: Motion.curve,
-      color: category.color.withValues(alpha: isTouched ? 0.15 : 0),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: category.color,
-          foregroundColor: Colors.white,
-          child: Icon(category.icon),
-        ),
-        title: Text(category.name),
-        trailing: Text(
-          '${formatBaht(amount)} · $percent%',
-          style: Theme.of(context).textTheme.bodyLarge,
-        ),
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: category.color.withValues(alpha: isTouched ? 0.15 : 0),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          CategoryIcon(category: category, size: 36),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              category.name,
+              style: const TextStyle(
+                color: AppStyle.ink,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Text(
+            '${formatBaht(amount)} · $percent%',
+            style: const TextStyle(color: AppStyle.ink, fontSize: 15),
+          ),
+        ],
       ),
     );
   }
@@ -265,7 +330,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
                 ),
               );
             },
-            child: InsightCard(insight: _insights[i]),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: InsightCard(insight: _insights[i]),
+            ),
           ),
       ],
     );
@@ -273,19 +341,19 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
   /// Shown instead of the chart when nothing was spent this month.
   Widget _buildEmptyState() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 24),
       child: Column(
         children: [
-          Icon(
-            Icons.pie_chart_outline,
-            size: 72,
-            color: Theme.of(context).colorScheme.outline,
-          ),
-          const SizedBox(height: 16),
+          Icon(Icons.pie_chart_outline, size: 72, color: AppStyle.muted),
+          SizedBox(height: 16),
           Text(
             'No expenses this month',
-            style: Theme.of(context).textTheme.titleMedium,
+            style: TextStyle(
+              color: AppStyle.ink,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),

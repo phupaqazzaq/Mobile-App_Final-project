@@ -47,6 +47,9 @@ class Motion {
   /// A legend row lighting up when its slice is tapped.
   static const Duration highlight = Duration(milliseconds: 250);
 
+  /// The white pill of the navigation bar moving to the tab that was tapped.
+  static const Duration tabSwitch = Duration(milliseconds: 300);
+
   /// True when the user has turned animations off, for example with
   /// Android's Settings > Accessibility > Remove animations.
   static bool isOff(BuildContext context) {

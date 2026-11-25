@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../utils/formatters.dart';
 import '../utils/motion.dart';
+import 'money_text.dart';
 
 /// An amount of money that counts up or down to its new value whenever
 /// [amount] changes, e.g. from ฿1,900.00 to ฿2,319.00. The first time it is
 /// shown, it counts up from ฿0.
 ///
 /// TweenAnimationBuilder drives it: when [amount] changes, it animates from
-/// the number on screen to the new one in 600 ms and rebuilds the Text every
-/// frame, formatted with [format].
+/// the number on screen to the new one in 600 ms and rebuilds the text every
+/// frame, formatted with [format] and drawn by [MoneyText].
 class RollingAmount extends StatelessWidget {
   const RollingAmount({
     super.key,
@@ -17,6 +18,8 @@ class RollingAmount extends StatelessWidget {
     this.format = formatBaht,
     this.prefix = '',
     this.style,
+    this.prefixStyle,
+    this.decimalsStyle,
   });
 
   /// The amount to show, in Thai Baht.
@@ -31,6 +34,12 @@ class RollingAmount extends StatelessWidget {
 
   final TextStyle? style;
 
+  /// The style of [prefix], added on top of [style].
+  final TextStyle? prefixStyle;
+
+  /// The style of the decimals (smaller and grey), added on top of [style].
+  final TextStyle? decimalsStyle;
+
   @override
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
@@ -40,7 +49,13 @@ class RollingAmount extends StatelessWidget {
       duration: Motion.duration(context, Motion.rollNumber),
       curve: Motion.curve,
       builder: (context, value, child) {
-        return Text('$prefix${format(value)}', style: style);
+        return MoneyText(
+          format(value),
+          prefix: prefix,
+          style: style,
+          prefixStyle: prefixStyle,
+          decimalsStyle: decimalsStyle,
+        );
       },
     );
   }

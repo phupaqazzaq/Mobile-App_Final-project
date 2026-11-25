@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/pill_nav_bar.dart';
 import 'budgets_screen.dart';
 import 'home_screen.dart';
 import 'insights_screen.dart';
 import 'recurring_screen.dart';
 
-/// The app's main layout: the current tab with a NavigationBar underneath.
+/// The app's main layout: the current tab with the floating pill navigation
+/// bar (PillNavBar) underneath.
 ///
 /// Only the current tab exists at any time. Each tab reads its data in
 /// initState, so switching tabs always shows fresh totals, budgets and
@@ -46,7 +48,7 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     // Each tab has its own Scaffold, with its own AppBar and + button. The bar
     // sits below it in a Column, because a second Scaffold around the tabs
-    // would make SnackBars cover the + button instead of pushing it up.
+    // would make SnackBars cover the + button instead of moving it.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -59,28 +61,28 @@ class _MainShellState extends State<MainShell> {
             child: _buildCurrentTab(),
           ),
         ),
-        NavigationBar(
+        PillNavBar(
           selectedIndex: _tabIndex,
-          onDestinationSelected: _selectTab,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
+          onSelected: _selectTab,
+          items: const [
+            PillNavItem(
+              icon: Icons.home_outlined,
+              selectedIcon: Icons.home,
               label: 'Home',
             ),
-            NavigationDestination(
-              icon: Icon(Icons.savings_outlined),
-              selectedIcon: Icon(Icons.savings),
+            PillNavItem(
+              icon: Icons.savings_outlined,
+              selectedIcon: Icons.savings,
               label: 'Budgets',
             ),
-            NavigationDestination(
-              icon: Icon(Icons.event_repeat_outlined),
-              selectedIcon: Icon(Icons.event_repeat),
+            PillNavItem(
+              icon: Icons.event_repeat_outlined,
+              selectedIcon: Icons.event_repeat,
               label: 'Recurring',
             ),
-            NavigationDestination(
-              icon: Icon(Icons.insights_outlined),
-              selectedIcon: Icon(Icons.insights),
+            PillNavItem(
+              icon: Icons.insights_outlined,
+              selectedIcon: Icons.insights,
               label: 'Insights',
             ),
           ],

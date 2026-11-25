@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../database/database_helper.dart';
 import '../models/recurring_payment.dart';
+import '../utils/app_style.dart';
 import '../utils/categories.dart';
 import '../utils/formatters.dart';
+import '../widgets/amount_field.dart';
+import '../widgets/category_icon.dart';
+import '../widgets/form_app_bar.dart';
 
 /// The form for adding a new fixed cost or subscription, or editing one.
 ///
@@ -114,13 +118,13 @@ class _RecurringFormScreenState extends State<RecurringFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? 'Edit Recurring Payment' : 'Add Recurring'),
+      appBar: buildFormAppBar(
+        _isEditing ? 'Edit Recurring Payment' : 'Add Recurring',
       ),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
             TextFormField(
               controller: _nameController,
@@ -130,37 +134,25 @@ class _RecurringFormScreenState extends State<RecurringFormScreen> {
               decoration: const InputDecoration(
                 labelText: 'Name',
                 hintText: 'e.g. Phone bill or Netflix',
-                border: OutlineInputBorder(),
               ),
               validator: _validateName,
             ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Amount',
-                prefixText: '฿ ',
-                border: OutlineInputBorder(),
-              ),
-              validator: validateAmount,
-            ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            // The amount, large and centred, like on the expense form.
+            AmountField(controller: _amountController),
+            const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: _category,
-              decoration: const InputDecoration(
-                labelText: 'Category',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Category'),
+              dropdownColor: Colors.white,
+              borderRadius: BorderRadius.circular(AppStyle.fieldRadius),
               items: [
                 for (final category in categories)
                   DropdownMenuItem(
                     value: category.name,
                     child: Row(
                       children: [
-                        Icon(category.icon, color: category.color),
+                        CategoryIcon(category: category, size: 28),
                         const SizedBox(width: 12),
                         Text(category.name),
                       ],
@@ -174,7 +166,9 @@ class _RecurringFormScreenState extends State<RecurringFormScreen> {
               },
             ),
             const SizedBox(height: 16),
+            // Pill buttons: the selected choice is black (see the theme).
             SegmentedButton<String>(
+              showSelectedIcon: false,
               segments: const [
                 ButtonSegment(
                   value: RecurringPayment.fixed,
@@ -192,8 +186,9 @@ class _RecurringFormScreenState extends State<RecurringFormScreen> {
                 });
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             SegmentedButton<String>(
+              showSelectedIcon: false,
               segments: const [
                 ButtonSegment(
                   value: RecurringPayment.monthly,
@@ -216,10 +211,9 @@ class _RecurringFormScreenState extends State<RecurringFormScreen> {
             if (_billingCycle == RecurringPayment.yearly) ...[
               DropdownButtonFormField<int>(
                 initialValue: _startMonth,
-                decoration: const InputDecoration(
-                  labelText: 'Payment month',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Payment month'),
+                dropdownColor: Colors.white,
+                borderRadius: BorderRadius.circular(AppStyle.fieldRadius),
                 items: [
                   for (var month = 1; month <= 12; month++)
                     DropdownMenuItem(
@@ -231,7 +225,7 @@ class _RecurringFormScreenState extends State<RecurringFormScreen> {
                   if (value != null) _startMonth = value;
                 },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
             ],
             TextFormField(
               controller: _dayController,
@@ -239,27 +233,40 @@ class _RecurringFormScreenState extends State<RecurringFormScreen> {
               decoration: const InputDecoration(
                 labelText: 'Payment day',
                 hintText: '1 to 28',
-                border: OutlineInputBorder(),
               ),
               validator: _validateDay,
             ),
-            const SizedBox(height: 8),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Active'),
-              subtitle: const Text('Inactive items don\'t count in any total'),
-              value: _isActive,
-              onChanged: (value) {
-                setState(() {
-                  _isActive = value;
-                });
-              },
+            const SizedBox(height: 12),
+            // The switch sits on a white card, like the fields above it.
+            Card(
+              clipBehavior: Clip.antiAlias,
+              child: SwitchListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 18),
+                title: const Text(
+                  'Active',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: const Text(
+                  'Inactive items don\'t count in any total',
+                  style: TextStyle(color: AppStyle.muted),
+                ),
+                value: _isActive,
+                onChanged: (value) {
+                  setState(() {
+                    _isActive = value;
+                  });
+                },
+              ),
             ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: _isSaving ? null : _save,
-              icon: const Icon(Icons.save),
-              label: Text(_isEditing ? 'Save Changes' : 'Add Recurring'),
+            const SizedBox(height: 24),
+            // The main button: a black pill.
+            SizedBox(
+              height: 56,
+              child: FilledButton.icon(
+                onPressed: _isSaving ? null : _save,
+                icon: const Icon(Icons.save),
+                label: Text(_isEditing ? 'Save Changes' : 'Add Recurring'),
+              ),
             ),
           ],
         ),

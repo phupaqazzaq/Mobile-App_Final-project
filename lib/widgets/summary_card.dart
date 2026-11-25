@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../utils/app_style.dart';
 import '../utils/formatters.dart';
 import 'rolling_amount.dart';
 
 /// The card at the top of the Home tab. It shows the total for the current
-/// month and how it splits into daily spending and recurring payments.
+/// month in big numbers, and how it splits into daily spending and recurring
+/// payments.
 class SummaryCard extends StatelessWidget {
   const SummaryCard({
     super.key,
@@ -25,62 +27,88 @@ class SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final smallStyle = textTheme.bodySmall?.copyWith(
-      color: colors.onPrimaryContainer,
+    const mutedStyle = TextStyle(
+      color: AppStyle.muted,
+      fontWeight: FontWeight.w500,
+    );
+    const partStyle = TextStyle(
+      color: AppStyle.ink,
+      fontSize: 15,
+      fontWeight: FontWeight.w600,
     );
 
     return Card(
-      color: colors.primaryContainer,
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
+        padding: const EdgeInsets.fromLTRB(22, 20, 20, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
                     'Spent in ${formatMonth(month)}',
-                    style: textTheme.titleSmall?.copyWith(
-                      color: colors.onPrimaryContainer,
+                    style: const TextStyle(
+                      color: AppStyle.muted,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  // Total rolls up: after every add, edit or delete the total
-                  // counts from its old value to the new one
-                  // (TweenAnimationBuilder inside RollingAmount).
-                  RollingAmount(
-                    amount: dailySpending + recurringCost,
-                    style: textTheme.headlineMedium?.copyWith(
-                      color: colors.onPrimaryContainer,
-                      fontWeight: FontWeight.bold,
-                    ),
+                ),
+                // A round badge with the wallet icon, in NoPoverty's green.
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: colors.primaryContainer,
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(height: 4),
-                  // The two parts of the total roll the same way. Each has its
-                  // own line, so the card keeps the same height while the
-                  // numbers change. (Sharing one line made it wrap part way
-                  // through the roll, which pushed the rest of Home down.)
-                  RollingAmount(
-                    amount: dailySpending,
-                    prefix: 'Daily spending ',
-                    style: smallStyle,
+                  child: Icon(
+                    Icons.account_balance_wallet,
+                    color: colors.onPrimaryContainer,
+                    size: 22,
                   ),
-                  RollingAmount(
-                    amount: recurringCost,
-                    prefix: 'Fixed & subscriptions ',
-                    style: smallStyle,
-                  ),
-                ],
+                ),
+              ],
+            ),
+            // Total rolls up: after every add, edit or delete the total
+            // counts from its old value to the new one
+            // (TweenAnimationBuilder inside RollingAmount). The baht are big
+            // and bold, the decimals smaller and grey.
+            RollingAmount(
+              amount: dailySpending + recurringCost,
+              style: const TextStyle(
+                color: AppStyle.ink,
+                fontSize: 44,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -1,
+              ),
+              decimalsStyle: const TextStyle(
+                color: AppStyle.muted,
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
               ),
             ),
-            const SizedBox(width: 8),
-            Icon(
-              Icons.account_balance_wallet,
-              size: 40,
-              color: colors.onPrimaryContainer,
+            const SizedBox(height: 12),
+            const Divider(),
+            const SizedBox(height: 12),
+            // The two parts of the total roll the same way. Each has its
+            // own line, so the card keeps the same height while the
+            // numbers change. (Sharing one line made it wrap part way
+            // through the roll, which pushed the rest of Home down.)
+            RollingAmount(
+              amount: dailySpending,
+              prefix: 'Daily spending ',
+              style: partStyle,
+              prefixStyle: mutedStyle,
+            ),
+            const SizedBox(height: 6),
+            RollingAmount(
+              amount: recurringCost,
+              prefix: 'Fixed & subscriptions ',
+              style: partStyle,
+              prefixStyle: mutedStyle,
             ),
           ],
         ),

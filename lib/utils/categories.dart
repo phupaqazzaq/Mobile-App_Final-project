@@ -8,6 +8,12 @@ class ExpenseCategory {
   final String name;
   final IconData icon;
   final Color color;
+
+  /// A light, pastel tint of [color] (18% of it mixed into white), used for
+  /// the soft fill of the budget envelopes.
+  Color get pastel {
+    return Color.alphaBlend(color.withValues(alpha: 0.18), Colors.white);
+  }
 }
 
 /// The fixed list of categories. This is the only place they are defined:

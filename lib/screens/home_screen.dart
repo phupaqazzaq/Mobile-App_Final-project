@@ -4,6 +4,7 @@ import '../database/database_helper.dart';
 import '../models/expense.dart';
 import '../models/insight.dart';
 import '../models/recurring_payment.dart';
+import '../utils/app_style.dart';
 import '../utils/categories.dart';
 import '../utils/motion.dart';
 import '../widgets/expense_tile.dart';
@@ -187,7 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(title: const Text('NoPoverty')),
       body: ListView.builder(
         // Space at the bottom so the + button doesn't cover the last item.
-        padding: const EdgeInsets.only(bottom: 80),
+        padding: const EdgeInsets.only(bottom: 96),
         // The first item is the header, so everything scrolls together and
         // small screens never run out of room.
         itemCount: _expenses.length + 1,
@@ -204,12 +205,15 @@ class _HomeScreenState extends State<HomeScreen> {
           }
           // Dismissible lets the user swipe the item to the left to delete
           // it, with its own slide-away animation.
-          return Dismissible(
-            key: ValueKey(expense.id),
-            direction: DismissDirection.endToStart,
-            background: _buildDeleteBackground(),
-            onDismissed: (_) => _deleteExpense(expense),
-            child: tile,
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: Dismissible(
+              key: ValueKey(expense.id),
+              direction: DismissDirection.endToStart,
+              background: _buildDeleteBackground(),
+              onDismissed: (_) => _deleteExpense(expense),
+              child: tile,
+            ),
           );
         },
       ),
@@ -252,10 +256,13 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SummaryCard(
-          dailySpending: _dailySpending,
-          recurringCost: _recurringCost,
-          month: DateTime.now(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: SummaryCard(
+            dailySpending: _dailySpending,
+            recurringCost: _recurringCost,
+            month: DateTime.now(),
+          ),
         ),
         _buildBanner(),
         _buildFilterChips(),
@@ -300,47 +307,67 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         child: topInsight == null
             ? const SizedBox.shrink()
-            : InsightCard(
+            : Padding(
                 // A new key tells AnimatedSwitcher the suggestion changed.
                 key: ValueKey('${topInsight.title}: ${topInsight.message}'),
-                insight: topInsight,
-                onSeeAll: widget.onSeeAllInsights,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: InsightCard(
+                  insight: topInsight,
+                  onSeeAll: widget.onSeeAllInsights,
+                ),
               ),
       ),
     );
   }
 
-  /// A row of chips (All, Food, Transport, ...) that scrolls sideways.
+  /// A row of pill-shaped chips (All, Food, Transport, ...) that scrolls
+  /// sideways.
   Widget _buildFilterChips() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       child: Row(
         spacing: 8,
         children: [
-          ChoiceChip(
-            label: const Text('All'),
-            selected: _selectedCategory == null,
-            onSelected: (_) => _selectCategory(null),
-          ),
+          _buildChip('All', null),
           for (final category in categories)
-            ChoiceChip(
-              label: Text(category.name),
-              selected: _selectedCategory == category.name,
-              onSelected: (_) => _selectCategory(category.name),
-            ),
+            _buildChip(category.name, category.name),
         ],
       ),
     );
   }
 
-  /// The red background with a trash icon that shows while swiping.
+  /// One filter chip: a black pill when selected, a white one otherwise.
+  /// [category] is the category it shows, or null for "All".
+  Widget _buildChip(String label, String? category) {
+    final selected = _selectedCategory == category;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => _selectCategory(category),
+      showCheckmark: false,
+      shape: const StadiumBorder(),
+      side: BorderSide.none,
+      backgroundColor: Colors.white,
+      selectedColor: AppStyle.ink,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      labelStyle: TextStyle(
+        color: selected ? Colors.white : AppStyle.ink,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+
+  /// The red rounded background with a trash icon that shows while swiping.
   Widget _buildDeleteBackground() {
     final colors = Theme.of(context).colorScheme;
     return Container(
-      color: colors.error,
       alignment: Alignment.centerRight,
       padding: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: BoxDecoration(
+        color: colors.error,
+        borderRadius: BorderRadius.circular(AppStyle.cardRadius),
+      ),
       child: Icon(Icons.delete, color: colors.onError),
     );
   }
@@ -352,19 +379,32 @@ class _HomeScreenState extends State<HomeScreen> {
         : 'No $_selectedCategory expenses yet. Tap + to add one.';
 
     return Padding(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
       child: Column(
         children: [
-          Icon(
-            Icons.savings_outlined,
-            size: 72,
-            color: Theme.of(context).colorScheme.outline,
+          // The piggy bank icon on a round white badge.
+          Container(
+            width: 96,
+            height: 96,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.savings_outlined,
+              size: 48,
+              color: AppStyle.muted,
+            ),
           ),
           const SizedBox(height: 16),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
+            style: const TextStyle(
+              color: AppStyle.ink,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
