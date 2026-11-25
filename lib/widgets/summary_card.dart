@@ -59,22 +59,19 @@ class SummaryCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  // The two parts of the total roll the same way. Wrap moves
-                  // the second part to the next line on a narrow screen.
-                  Wrap(
-                    children: [
-                      RollingAmount(
-                        amount: dailySpending,
-                        prefix: 'Daily spending ',
-                        style: smallStyle,
-                      ),
-                      Text(' · ', style: smallStyle),
-                      RollingAmount(
-                        amount: recurringCost,
-                        prefix: 'Fixed & subscriptions ',
-                        style: smallStyle,
-                      ),
-                    ],
+                  // The two parts of the total roll the same way. Each has its
+                  // own line, so the card keeps the same height while the
+                  // numbers change. (Sharing one line made it wrap part way
+                  // through the roll, which pushed the rest of Home down.)
+                  RollingAmount(
+                    amount: dailySpending,
+                    prefix: 'Daily spending ',
+                    style: smallStyle,
+                  ),
+                  RollingAmount(
+                    amount: recurringCost,
+                    prefix: 'Fixed & subscriptions ',
+                    style: smallStyle,
                   ),
                 ],
               ),
